@@ -44,6 +44,12 @@ type RenderLayerState = {
   visible: boolean;
 };
 
+type ScaleEditorState = {
+  id?: string;
+  points: [Point, Point];
+  meters?: number;
+};
+
 function createInitialRenderLayer(): RenderLayerState {
   return { id: 0, scale: MIN_RENDER_SCALE, visible: true };
 }
@@ -127,7 +133,7 @@ export function PdfViewer({
     createInitialRenderLayer()
   ]);
   const [pageReady, setPageReady] = useState(false);
-  const [scaleLine, setScaleLine] = useState<[Point, Point] | null>(null);
+  const [scaleLine, setScaleLine] = useState<ScaleEditorState | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLElement | null>(null);
@@ -194,7 +200,9 @@ export function PdfViewer({
 
       if (cancelled) return;
       setElements(savedElements);
-      setScale(savedScale);
+      if (!savedElements.some((element) => element.type === "scale")) {
+        setScale(savedScale);
+      }
       clearSelection();
       setLoaded(true);
     }
@@ -263,6 +271,18 @@ export function PdfViewer({
     if (!scale.factor) return "Scale not set";
     return `${scale.factor.toFixed(1)} px / m`;
   }, [scale.factor]);
+
+  const scaleSet = Boolean(scale.factor);
+
+  const handleToolChange = useCallback(
+    (nextTool: typeof tool) => {
+      if (!scaleSet && ["point", "polyline", "closed_polyline"].includes(nextTool)) {
+        return;
+      }
+      setTool(nextTool);
+    },
+    [scaleSet, setTool]
+  );
 
   const applyViewport = useCallback((nextViewport: ViewportState) => {
     transformRef.current = nextViewport;
@@ -432,7 +452,7 @@ export function PdfViewer({
           </div>
         </div>
 
-        <DrawingTools tool={tool} onToolChange={setTool} />
+        <DrawingTools tool={tool} scaleSet={scaleSet} onToolChange={handleToolChange} />
 
         <div className="flex items-center gap-1">
           <button
@@ -494,7 +514,7 @@ export function PdfViewer({
           onMouseDown={(event) => {
             if (event.button === 2) {
               event.preventDefault();
-              setTool("pan");
+              handleToolChange("pan");
               startPan(event.clientX, event.clientY);
               return;
             }
@@ -516,7 +536,7 @@ export function PdfViewer({
             setIsPanning(false);
             if (event.button === 2) {
               event.preventDefault();
-              setTool("select");
+              handleToolChange("select");
             }
           }}
           onMouseLeave={() => setIsPanning(false)}
@@ -574,7 +594,7 @@ export function PdfViewer({
               <Canvas
                 width={pageSize.width}
                 height={pageSize.height}
-                zoom={1}
+                zoom={viewport.zoom}
                 elements={elements}
                 selectedIds={selectedIds}
                 tool={tool}
@@ -583,8 +603,18 @@ export function PdfViewer({
                 onDraftChange={setDraftPoints}
                 onAddElement={addElement}
                 onSelect={selectElement}
+                onClearSelection={clearSelection}
                 onPointDrag={updateElementPoint}
-                onScaleLine={setScaleLine}
+                onScaleLine={(points) => setScaleLine({ points })}
+                onEditScale={(id) => {
+                  const element = elements.find((item) => item.id === id && item.type === "scale");
+                  if (!element || element.points.length < 2) return;
+                  setScaleLine({
+                    id,
+                    points: [element.points[0], element.points[1]],
+                    meters: element.value
+                  });
+                }}
               />
             </div>
           )}
@@ -599,13 +629,21 @@ export function PdfViewer({
       </div>
 
       <ScaleTool
-        points={scaleLine}
+        points={scaleLine?.points ?? null}
+        defaultMeters={scaleLine?.meters}
         onCancel={() => setScaleLine(null)}
         onApply={(meters) => {
           if (!scaleLine) return;
-          setScale({ factor: distance(scaleLine[0], scaleLine[1]) / meters, unit: "meters" });
+          addElement({
+            id: scaleLine.id ?? crypto.randomUUID(),
+            type: "scale",
+            points: scaleLine.points,
+            value: meters,
+            displayOrder: 0
+          });
+          setScale({ factor: distance(scaleLine.points[0], scaleLine.points[1]) / meters, unit: "meters" });
           setScaleLine(null);
-          setTool("select");
+          handleToolChange("select");
         }}
       />
     </main>

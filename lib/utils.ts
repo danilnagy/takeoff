@@ -1,5 +1,5 @@
 import clsx, { type ClassValue } from "clsx";
-import type { Point } from "@/types";
+import type { ElementType, Point } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
@@ -36,22 +36,24 @@ export function polygonArea(points: Point[]) {
 }
 
 export function calculateValue(
-  type: "point" | "polyline" | "closed_polyline",
+  type: ElementType,
   points: Point[],
   scaleFactor: number | null
 ) {
   if (type === "point") return 1;
+  if (type === "scale") return 0;
   if (!scaleFactor) return 0;
   if (type === "polyline") return polylineLength(points) / scaleFactor;
   return polygonArea(points) / (scaleFactor * scaleFactor);
 }
 
 export function formatValue(
-  type: "point" | "polyline" | "closed_polyline",
+  type: ElementType,
   value: number,
   unit = "m"
 ) {
   if (type === "point") return `${value} count`;
+  if (type === "scale") return `${value.toFixed(2)} ${unit}`;
   if (type === "polyline") return `${value.toFixed(2)} ${unit}`;
   return `${value.toFixed(2)} ${unit}²`;
 }

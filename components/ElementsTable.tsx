@@ -13,6 +13,7 @@ import type { ElementType, TakeoffElement } from "@/types";
 import { cn, formatValue } from "@/lib/utils";
 
 const labels: Record<ElementType, string> = {
+  scale: "Scale",
   point: "Point",
   polyline: "Polyline",
   closed_polyline: "Closed Polyline"
@@ -41,7 +42,7 @@ function SortableRow({
         selected && "bg-blue-50"
       )}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      onClick={(event) => onSelect(element.id, event.shiftKey)}
+      onClick={(event) => onSelect(element.id, event.ctrlKey)}
     >
       <button
         className="flex h-7 w-7 cursor-grab items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
@@ -91,7 +92,7 @@ export function ElementsTable({
     onReorder(String(event.active.id), String(event.over.id));
   }
 
-  const groups = (["point", "polyline", "closed_polyline"] as ElementType[]).map((type) => ({
+  const groups = (["scale", "point", "polyline", "closed_polyline"] as ElementType[]).map((type) => ({
     type,
     items: elements
       .filter((element) => element.type === type)

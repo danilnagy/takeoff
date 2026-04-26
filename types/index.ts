@@ -3,7 +3,7 @@ export type Point = {
   y: number;
 };
 
-export type ElementType = "point" | "polyline" | "closed_polyline";
+export type ElementType = "point" | "polyline" | "closed_polyline" | "scale";
 
 export type TakeoffElement = {
   id: string;

@@ -5,10 +5,12 @@ import { distance } from "@/lib/utils";
 
 export function ScaleTool({
   points,
+  defaultMeters,
   onApply,
   onCancel
 }: {
   points: [Point, Point] | null;
+  defaultMeters?: number;
   onApply: (meters: number) => void;
   onCancel: () => void;
 }) {
@@ -38,6 +40,7 @@ export function ScaleTool({
             name="meters"
             step="0.01"
             type="number"
+            defaultValue={defaultMeters}
             autoFocus
             required
           />

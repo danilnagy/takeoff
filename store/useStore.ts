@@ -2,7 +2,29 @@
 
 import { create } from "zustand";
 import type { Point, ScaleState, TakeoffElement, ToolMode } from "@/types";
-import { calculateValue } from "@/lib/utils";
+import { calculateValue, distance } from "@/lib/utils";
+
+function getScaleFromElements(elements: TakeoffElement[]): ScaleState {
+  const scaleElement = elements.find((element) => element.type === "scale");
+  if (!scaleElement || scaleElement.points.length < 2 || scaleElement.value <= 0) {
+    return { factor: null, unit: "meters" };
+  }
+
+  return {
+    factor: distance(scaleElement.points[0], scaleElement.points[1]) / scaleElement.value,
+    unit: "meters"
+  };
+}
+
+function recalculateElements(elements: TakeoffElement[], factor: number | null) {
+  return elements.map((element) => ({
+    ...element,
+    value:
+      element.type === "scale"
+        ? element.value
+        : calculateValue(element.type, element.points, factor)
+  }));
+}
 
 type StoreState = {
   elements: TakeoffElement[];
@@ -29,15 +51,15 @@ export const useStore = create<StoreState>((set, get) => ({
   tool: "select",
   scale: { factor: null, unit: "meters" },
   draftPoints: [],
-  setElements: (elements) => set({ elements }),
+  setElements: (elements) => {
+    const scale = getScaleFromElements(elements);
+    set({ elements: recalculateElements(elements, scale.factor), scale });
+  },
   setTool: (tool) => set({ tool, draftPoints: [] }),
   setScale: (scale) =>
     set((state) => ({
       scale,
-      elements: state.elements.map((element) => ({
-        ...element,
-        value: calculateValue(element.type, element.points, scale.factor)
-      }))
+      elements: recalculateElements(state.elements, scale.factor)
     })),
   setDraftPoints: (draftPoints) => set({ draftPoints }),
   selectElement: (id, additive) =>
@@ -50,36 +72,64 @@ export const useStore = create<StoreState>((set, get) => ({
     })),
   clearSelection: () => set({ selectedIds: [] }),
   addElement: (element) =>
-    set((state) => ({
-      elements: [...state.elements, element],
-      selectedIds: [element.id],
-      draftPoints: [],
-      tool: element.type === "point" ? state.tool : "select"
-    })),
+    set((state) => {
+      const elements =
+        element.type === "scale"
+          ? [...state.elements.filter((item) => item.type !== "scale"), element]
+          : [...state.elements, element];
+      const scale = element.type === "scale" ? getScaleFromElements(elements) : state.scale;
+
+      return {
+        elements: recalculateElements(elements, scale.factor),
+        scale,
+        selectedIds: [element.id],
+        draftPoints: [],
+        tool: element.type === "point" ? state.tool : "select"
+      };
+    }),
   deleteSelected: () =>
-    set((state) => ({
-      elements: state.elements.filter((element) => !state.selectedIds.includes(element.id)),
-      selectedIds: []
-    })),
+    set((state) => {
+      const elements = state.elements.filter((element) => !state.selectedIds.includes(element.id));
+      const scale = getScaleFromElements(elements);
+
+      return {
+        elements: recalculateElements(elements, scale.factor),
+        scale,
+        selectedIds: [],
+        tool: scale.factor ? state.tool : state.tool === "scale" ? "scale" : "select"
+      };
+    }),
   deleteElement: (id) =>
-    set((state) => ({
-      elements: state.elements.filter((element) => element.id !== id),
-      selectedIds: state.selectedIds.filter((selectedId) => selectedId !== id)
-    })),
+    set((state) => {
+      const elements = state.elements.filter((element) => element.id !== id);
+      const scale = getScaleFromElements(elements);
+
+      return {
+        elements: recalculateElements(elements, scale.factor),
+        scale,
+        selectedIds: state.selectedIds.filter((selectedId) => selectedId !== id),
+        tool: scale.factor ? state.tool : state.tool === "scale" ? "scale" : "select"
+      };
+    }),
   updateElementPoint: (id, pointIndex, point) =>
-    set((state) => ({
-      elements: state.elements.map((element) => {
+    set((state) => {
+      const elements = state.elements.map((element) => {
         if (element.id !== id) return element;
         const points = element.points.map((existing, index) =>
           index === pointIndex ? point : existing
         );
         return {
           ...element,
-          points,
-          value: calculateValue(element.type, points, state.scale.factor)
+          points
         };
-      })
-    })),
+      });
+      const scale = getScaleFromElements(elements);
+
+      return {
+        elements: recalculateElements(elements, scale.factor),
+        scale
+      };
+    }),
   reorderElements: (activeId, overId) =>
     set((state) => {
       const active = state.elements.find((element) => element.id === activeId);
