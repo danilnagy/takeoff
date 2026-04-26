@@ -29,6 +29,7 @@ const RENDER_DEBOUNCE_DELAY = 260;
 const RENDER_FADE_DURATION = 180;
 const FIT_PADDING = 32;
 const MAX_RENDER_PIXELS = 52000000;
+const MIN_RENDER_SCALE = 1.5;
 const RENDER_SCALE_CHANGE_THRESHOLD = 0.03;
 
 type ViewportState = {
@@ -43,6 +44,10 @@ type RenderLayerState = {
   visible: boolean;
 };
 
+function createInitialRenderLayer(): RenderLayerState {
+  return { id: 0, scale: MIN_RENDER_SCALE, visible: true };
+}
+
 function getViewportTransform(viewport: ViewportState) {
   return `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.zoom})`;
 }
@@ -52,7 +57,8 @@ function getTargetRenderScale(zoom: number, pageSize: { width: number; height: n
     1,
     Math.sqrt(MAX_RENDER_PIXELS / (pageSize.width * pageSize.height))
   );
-  return Math.min(Math.max(zoom, 1), maxScale);
+  const minimumScale = Math.min(MIN_RENDER_SCALE, maxScale);
+  return Math.min(Math.max(zoom, minimumScale), maxScale);
 }
 
 function PdfRenderLayer({
@@ -117,8 +123,8 @@ export function PdfViewer({
   const [pageKey, setPageKey] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState({ width: BASE_WIDTH, height: 800 });
   const [viewport, setViewport] = useState({ x: 24, y: 24, zoom: 1 });
-  const [renderLayers, setRenderLayers] = useState<RenderLayerState[]>([
-    { id: 0, scale: 1, visible: true }
+  const [renderLayers, setRenderLayers] = useState<RenderLayerState[]>(() => [
+    createInitialRenderLayer()
   ]);
   const [pageReady, setPageReady] = useState(false);
   const [scaleLine, setScaleLine] = useState<[Point, Point] | null>(null);
@@ -127,7 +133,7 @@ export function PdfViewer({
   const viewportRef = useRef<HTMLElement | null>(null);
   const drawingRef = useRef<HTMLDivElement | null>(null);
   const transformRef = useRef(viewport);
-  const activeRenderRef = useRef<RenderLayerState>({ id: 0, scale: 1, visible: true });
+  const activeRenderRef = useRef<RenderLayerState>(createInitialRenderLayer());
   const stagedRenderRef = useRef<RenderLayerState | null>(null);
   const nextRenderLayerIdRef = useRef(1);
   const hasFitToViewRef = useRef(false);
@@ -167,6 +173,11 @@ export function PdfViewer({
       setLoaded(false);
       setPageReady(false);
       hasFitToViewRef.current = false;
+      const initialRenderLayer = createInitialRenderLayer();
+      activeRenderRef.current = initialRenderLayer;
+      stagedRenderRef.current = null;
+      nextRenderLayerIdRef.current = 1;
+      setRenderLayers([initialRenderLayer]);
       const [projectRecord, resolvedPageKey] = await Promise.all([
         getProject(documentId),
         getPageKey(documentId, pageNumber)
