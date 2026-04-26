@@ -29,7 +29,7 @@ const RENDER_DEBOUNCE_DELAY = 260;
 const RENDER_FADE_DURATION = 180;
 const FIT_PADDING = 32;
 const MAX_RENDER_PIXELS = 52000000;
-const RENDER_SCALE_STEPS = [1, 1.5, 2, 3, 4, 5, 6, 8];
+const RENDER_SCALE_CHANGE_THRESHOLD = 0.03;
 
 type ViewportState = {
   x: number;
@@ -52,16 +52,7 @@ function getTargetRenderScale(zoom: number, pageSize: { width: number; height: n
     1,
     Math.sqrt(MAX_RENDER_PIXELS / (pageSize.width * pageSize.height))
   );
-  const desiredScale = Math.min(zoom, maxScale);
-  const availableSteps = RENDER_SCALE_STEPS.filter((step) => step <= maxScale);
-
-  if (desiredScale <= 1.15) return 1;
-
-  return (
-    availableSteps.find((step) => step >= desiredScale * 0.92) ??
-    availableSteps[availableSteps.length - 1] ??
-    1
-  );
+  return Math.min(Math.max(zoom, 1), maxScale);
 }
 
 function PdfRenderLayer({
@@ -288,8 +279,10 @@ export function PdfViewer({
       const targetRenderScale = getTargetRenderScale(zoom, pageSize);
 
       if (
-        Math.abs(targetRenderScale - activeRenderRef.current.scale) < 0.01 ||
-        Math.abs(targetRenderScale - (stagedRenderRef.current?.scale ?? 0)) < 0.01
+        Math.abs(targetRenderScale - activeRenderRef.current.scale) <
+          RENDER_SCALE_CHANGE_THRESHOLD ||
+        Math.abs(targetRenderScale - (stagedRenderRef.current?.scale ?? 0)) <
+          RENDER_SCALE_CHANGE_THRESHOLD
       ) {
         return;
       }
