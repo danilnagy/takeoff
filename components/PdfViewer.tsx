@@ -24,6 +24,27 @@ import type { Point, ProjectRecord } from "@/types";
 const BASE_WIDTH = 1100;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 12;
+const ZOOM_STEPS = [
+  MIN_ZOOM,
+  0.5,
+  0.67,
+  0.75,
+  0.9,
+  1,
+  1.1,
+  1.25,
+  1.5,
+  1.75,
+  2,
+  2.5,
+  3,
+  4,
+  5,
+  6,
+  8,
+  10,
+  MAX_ZOOM
+] as const;
 const VIEWPORT_SYNC_DELAY = 80;
 const RENDER_DEBOUNCE_DELAY = 260;
 const RENDER_FADE_DURATION = 180;
@@ -56,6 +77,39 @@ function createInitialRenderLayer(): RenderLayerState {
 
 function getViewportTransform(viewport: ViewportState) {
   return `translate3d(${viewport.x}px, ${viewport.y}px, 0) scale(${viewport.zoom})`;
+}
+
+function clampZoom(zoom: number) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+}
+
+function getNearestZoomStep(zoom: number) {
+  const clampedZoom = clampZoom(zoom);
+
+  return ZOOM_STEPS.reduce((nearest, step) =>
+    Math.abs(step - clampedZoom) < Math.abs(nearest - clampedZoom) ? step : nearest
+  );
+}
+
+function getNextZoomStep(currentZoom: number, direction: "in" | "out") {
+  const clampedZoom = clampZoom(currentZoom);
+
+  if (direction === "in") {
+    return ZOOM_STEPS.find((step) => step > clampedZoom + Number.EPSILON) ?? MAX_ZOOM;
+  }
+
+  return [...ZOOM_STEPS]
+    .reverse()
+    .find((step) => step < clampedZoom - Number.EPSILON) ?? MIN_ZOOM;
+}
+
+function getFitZoomStep(zoom: number) {
+  const clampedZoom = clampZoom(zoom);
+
+  return (
+    [...ZOOM_STEPS].reverse().find((step) => step <= clampedZoom + Number.EPSILON) ??
+    MIN_ZOOM
+  );
 }
 
 function getTargetRenderScale(zoom: number, pageSize: { width: number; height: number }) {
@@ -379,7 +433,7 @@ export function PdfViewer({
     const currentViewport = transformRef.current;
     const nextViewport = {
       ...currentViewport,
-      zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom))
+      zoom: getNearestZoomStep(nextZoom)
     };
 
     if (!container || !anchor) {
@@ -425,13 +479,14 @@ export function PdfViewer({
         Math.min(availableWidth / pageSize.width, availableHeight / pageSize.height)
       )
     );
+    const snappedFitZoom = getFitZoomStep(fitZoom);
 
     applyViewport({
-      x: (container.clientWidth - pageSize.width * fitZoom) / 2,
-      y: (container.clientHeight - pageSize.height * fitZoom) / 2,
-      zoom: fitZoom
+      x: (container.clientWidth - pageSize.width * snappedFitZoom) / 2,
+      y: (container.clientHeight - pageSize.height * snappedFitZoom) / 2,
+      zoom: snappedFitZoom
     });
-    scheduleRenderForZoom(fitZoom);
+    scheduleRenderForZoom(snappedFitZoom);
     return true;
   }, [applyViewport, pageSize, scheduleRenderForZoom]);
 
@@ -473,7 +528,7 @@ export function PdfViewer({
             onClick={() => {
               const rect = viewportRef.current?.getBoundingClientRect();
               updateZoom(
-                transformRef.current.zoom / 1.2,
+                getNextZoomStep(transformRef.current.zoom, "out"),
                 rect
                   ? {
                       x: rect.left + rect.width / 2,
@@ -492,7 +547,7 @@ export function PdfViewer({
             onClick={() => {
               const rect = viewportRef.current?.getBoundingClientRect();
               updateZoom(
-                transformRef.current.zoom * 1.2,
+                getNextZoomStep(transformRef.current.zoom, "in"),
                 rect
                   ? {
                       x: rect.left + rect.width / 2,
@@ -552,8 +607,9 @@ export function PdfViewer({
           onMouseLeave={() => setIsPanning(false)}
           onWheel={(event) => {
             event.preventDefault();
-            const wheelScale = Math.exp(-event.deltaY * 0.001);
-            updateZoom(transformRef.current.zoom * wheelScale, {
+            if (event.deltaY === 0) return;
+            const direction = event.deltaY < 0 ? "in" : "out";
+            updateZoom(getNextZoomStep(transformRef.current.zoom, direction), {
               x: event.clientX,
               y: event.clientY
             });
