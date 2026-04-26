@@ -246,12 +246,11 @@ export function PdfViewer({
     function handleMouseUp(event: MouseEvent) {
       if (event.button !== 2) return;
       setIsPanning(false);
-      setTool("select");
     }
 
     window.addEventListener("mouseup", handleMouseUp);
     return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, [setTool]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -507,14 +506,13 @@ export function PdfViewer({
         <section
           ref={viewportRef}
           className="relative min-w-0 flex-1 overflow-hidden bg-[#eef1f5]"
-          style={{ cursor: tool === "pan" ? (isPanning ? "grabbing" : "grab") : undefined }}
+          style={{ cursor: isPanning ? "grabbing" : tool === "pan" ? "grab" : undefined }}
           onContextMenu={(event) => {
             event.preventDefault();
           }}
           onMouseDown={(event) => {
             if (event.button === 2) {
               event.preventDefault();
-              handleToolChange("pan");
               startPan(event.clientX, event.clientY);
               return;
             }
@@ -536,7 +534,6 @@ export function PdfViewer({
             setIsPanning(false);
             if (event.button === 2) {
               event.preventDefault();
-              handleToolChange("select");
             }
           }}
           onMouseLeave={() => setIsPanning(false)}
@@ -558,7 +555,7 @@ export function PdfViewer({
               style={{
                 width: pageSize.width,
                 height: pageSize.height,
-                pointerEvents: tool === "pan" ? "none" : "auto",
+                pointerEvents: tool === "pan" || isPanning ? "none" : "auto",
                 transform: getViewportTransform(transformRef.current),
                 transformOrigin: "top left",
                 willChange: "transform"

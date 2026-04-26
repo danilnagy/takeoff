@@ -306,7 +306,7 @@ export function Canvas({
                 stroke={tool === "scale" ? "#111827" : "#f59e0b"}
                 strokeWidth={BASE_STROKE_WIDTH}
                 strokeScaleEnabled={false}
-                dash={DRAFT_DASH.map((value) => value * inverseZoom)}
+                dash={DRAFT_DASH}
               />
               {draftPoints.map((point, index) => (
                 <Circle
