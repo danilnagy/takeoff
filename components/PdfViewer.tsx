@@ -26,6 +26,7 @@ const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 12;
 const VIEWPORT_SYNC_DELAY = 80;
 const RENDER_DEBOUNCE_DELAY = 260;
+const RENDER_FADE_DURATION = 180;
 const FIT_PADDING = 32;
 const MAX_RENDER_PIXELS = 52000000;
 const RENDER_SCALE_STEPS = [1, 1.5, 2, 3, 4, 5, 6, 8];
@@ -87,7 +88,8 @@ function PdfRenderLayer({
         width: pageSize.width,
         height: pageSize.height,
         opacity: visible ? 1 : 0,
-        zIndex: visible ? 1 : 2
+        zIndex: layerId + 1,
+        transition: `opacity ${RENDER_FADE_DURATION}ms ease-out`
       }}
     >
       <div
@@ -140,6 +142,7 @@ export function PdfViewer({
   const hasFitToViewRef = useRef(false);
   const viewportSyncTimeoutRef = useRef<number | null>(null);
   const renderDebounceTimeoutRef = useRef<number | null>(null);
+  const renderFadeTimeoutRef = useRef<number | null>(null);
   const panRef = useRef({
     startX: 0,
     startY: 0,
@@ -248,6 +251,9 @@ export function PdfViewer({
       if (renderDebounceTimeoutRef.current !== null) {
         window.clearTimeout(renderDebounceTimeoutRef.current);
       }
+      if (renderFadeTimeoutRef.current !== null) {
+        window.clearTimeout(renderFadeTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -314,15 +320,20 @@ export function PdfViewer({
         activeRenderRef.current = promotedLayer;
         stagedRenderRef.current = null;
 
+        if (renderFadeTimeoutRef.current !== null) {
+          window.clearTimeout(renderFadeTimeoutRef.current);
+        }
+
         setRenderLayers((layers) =>
           layers.map((layer) =>
             layer.id === layerId ? promotedLayer : { ...layer, visible: true }
           )
         );
 
-        window.requestAnimationFrame(() => {
+        renderFadeTimeoutRef.current = window.setTimeout(() => {
           setRenderLayers([promotedLayer]);
-        });
+          renderFadeTimeoutRef.current = null;
+        }, RENDER_FADE_DURATION);
       });
     });
   }
