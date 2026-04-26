@@ -8,7 +8,7 @@ import {
   verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Maximize2, Minimize2, Trash2 } from "lucide-react";
+import { GripVertical, Maximize2, Minimize2, Ruler, Trash2 } from "lucide-react";
 import type { ElementType, TakeoffElement } from "@/types";
 import { cn, formatValue } from "@/lib/utils";
 
@@ -17,6 +17,13 @@ const labels: Record<ElementType, string> = {
   point: "Point",
   polyline: "Polyline",
   closed_polyline: "Closed Polyline"
+};
+
+const categoryLabels: Record<ElementType, string> = {
+  scale: "Scale",
+  point: "Count",
+  polyline: "Length",
+  closed_polyline: "Area"
 };
 
 function SortableRow({
@@ -72,18 +79,60 @@ function SortableRow({
   );
 }
 
+function ScaleRow({
+  element,
+  selected,
+  onSelect,
+  onEditScale
+}: {
+  element: TakeoffElement;
+  selected: boolean;
+  onSelect: (id: string, additive?: boolean) => void;
+  onEditScale: (id: string) => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-[32px_1fr_auto] items-center gap-3 border-b border-gray-100 px-4 py-3 text-sm",
+        selected && "bg-blue-50"
+      )}
+      onClick={(event) => onSelect(element.id, event.ctrlKey)}
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gray-100 text-gray-700">
+        <Ruler className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <div className="font-medium text-ink">Drawing scale</div>
+        <div className="text-xs text-gray-500">Reference length</div>
+      </div>
+      <button
+        className="rounded-md border border-gray-300 bg-white px-3 py-2 text-right text-base font-semibold leading-none text-ink shadow-sm hover:border-accent hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-accent/30"
+        title="Set reference length"
+        onClick={(event) => {
+          event.stopPropagation();
+          onEditScale(element.id);
+        }}
+      >
+        {formatValue(element.type, element.value)}
+      </button>
+    </div>
+  );
+}
+
 export function ElementsTable({
   elements,
   selectedIds,
   onSelect,
   onDelete,
-  onReorder
+  onReorder,
+  onEditScale
 }: {
   elements: TakeoffElement[];
   selectedIds: string[];
   onSelect: (id: string, additive?: boolean) => void;
   onDelete: (id: string) => void;
   onReorder: (activeId: string, overId: string) => void;
+  onEditScale: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -92,7 +141,8 @@ export function ElementsTable({
     onReorder(String(event.active.id), String(event.over.id));
   }
 
-  const groups = (["scale", "point", "polyline", "closed_polyline"] as ElementType[]).map((type) => ({
+  const scaleElement = elements.find((element) => element.type === "scale");
+  const groups = (["point", "polyline", "closed_polyline"] as ElementType[]).map((type) => ({
     type,
     items: elements
       .filter((element) => element.type === type)
@@ -124,10 +174,18 @@ export function ElementsTable({
 
       <DndContext onDragEnd={handleDragEnd}>
         <div className="h-[calc(100%-65px)] overflow-auto">
+          {scaleElement ? (
+            <ScaleRow
+              element={scaleElement}
+              selected={selectedIds.includes(scaleElement.id)}
+              onSelect={onSelect}
+              onEditScale={onEditScale}
+            />
+          ) : null}
           {groups.map((group) => (
             <section key={group.type}>
               <div className="sticky top-0 z-10 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                {labels[group.type]}
+                {categoryLabels[group.type]}
               </div>
               {group.items.length ? (
                 <SortableContext items={group.items.map((item) => item.id)} strategy={verticalListSortingStrategy}>

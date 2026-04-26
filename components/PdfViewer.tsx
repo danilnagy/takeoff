@@ -273,6 +273,19 @@ export function PdfViewer({
 
   const scaleSet = Boolean(scale.factor);
 
+  const openScaleEditor = useCallback(
+    (id: string) => {
+      const element = elements.find((item) => item.id === id && item.type === "scale");
+      if (!element || element.points.length < 2) return;
+      setScaleLine({
+        id,
+        points: [element.points[0], element.points[1]],
+        meters: element.value
+      });
+    },
+    [elements]
+  );
+
   const handleToolChange = useCallback(
     (nextTool: typeof tool) => {
       if (!scaleSet && ["point", "polyline", "closed_polyline"].includes(nextTool)) {
@@ -603,15 +616,7 @@ export function PdfViewer({
                 onClearSelection={clearSelection}
                 onPointDrag={updateElementPoint}
                 onScaleLine={(points) => setScaleLine({ points })}
-                onEditScale={(id) => {
-                  const element = elements.find((item) => item.id === id && item.type === "scale");
-                  if (!element || element.points.length < 2) return;
-                  setScaleLine({
-                    id,
-                    points: [element.points[0], element.points[1]],
-                    meters: element.value
-                  });
-                }}
+                onEditScale={openScaleEditor}
               />
             </div>
           )}
@@ -622,6 +627,7 @@ export function PdfViewer({
           onSelect={selectElement}
           onDelete={deleteElement}
           onReorder={reorderElements}
+          onEditScale={openScaleEditor}
         />
       </div>
 
